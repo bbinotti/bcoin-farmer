@@ -7,6 +7,8 @@ import numpy as np
 import mss
 import pyautogui
 
+import config as cfg
+
 pyautogui.PAUSE = .5
 
 # screen_states = ["connect", "mm_sign", "main", "hunting", "heroes"]
@@ -30,7 +32,7 @@ args = parser.parse_args()
 class Game:
     def __init__(self, section_coords, action_coords):
         self.screen_state = ''
-        self.working = False
+        self.hunting = False
         self.actions = []
         self.section_coords = section_coords
         self.action_coords = action_coords
@@ -82,7 +84,7 @@ class Game:
 
     def runCycle(self):
         # traverse through the graph from current state to the idling state
-        while not self.working:
+        while not self.hunting:
             edges = state_graph[self.screen_state]
             print(edges)
             for edge in edges:
@@ -93,8 +95,9 @@ class Game:
 
     def performActions(self, actions):
         for i, action in enumerate(actions):
-            x = self.action_coords[self.screen_state][2*i] - 1920
-            y = self.action_coords[self.screen_state][(2*i)+1]
+            print(self.action_coords[self.screen_state][i])
+            x = self.action_coords[self.screen_state][i][0] - 1920
+            y = self.action_coords[self.screen_state][i][1]
             print(f'action {i}: {action} ({x}, {y})')
             if action == "click":
                 pyautogui.click(x, y)
@@ -109,7 +112,7 @@ class Game:
                 pyautogui.drag(0, -s_size, 1, button='left')
             elif action == "work":
                 pyautogui.click(x, y, clicks=15, interval=0.6)
-                self.working = True
+                self.hunting = True
 
 
 def main():
@@ -129,17 +132,32 @@ def main():
         "connect": [830, 670, 280, 100],
         "mm_sign": [470, 225, 1000, 675],
         "main": [470, 225, 1000, 675],
-        "hunt": [1207, 341, 972, 825],
-        "heroes": [620, 720, 888, 730, 1207, 341],
+        "hunt": [cfg.background_area, cfg.hero_subpanel],
+        "heroes": [cfg.hero_drag_area, cfg.bottom_work_button, cfg.background_area],
         "heroes_subpanel": [470, 225, 1000, 675]
 
     }
+
+    start_time = time.time()
     game = Game(section_coords, action_coords)
     while True:
         # print(game.screen_state)
         # game.performActions()
-        game.working = False
-        game.runCycle()
-
+        print('Running...')
+        time_diff = time.time() - start_time
+        if not game.hunting:
+            game.runCycle()
+        elif time_diff > (cfg.refresh_timer * 60):
+            print('Refreshing game...')
+            game.hunting = False
+            # back button
+            start_time = time.time()
+        elif time_diff > (cfg.work_timer * 60):
+            print('Refreshing workers...')
+            game.hunting = False
+            start_time = time.time()
+        else:
+            print(f'Pausing program for {cfg.pause_timer * 60} seconds...')
+            time.sleep(cfg.pause_timer * 60)
 
 main()
