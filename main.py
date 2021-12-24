@@ -7,57 +7,31 @@ import numpy as np
 import mss
 import pyautogui
 
+pyautogui.PAUSE = .5
+
 # screen_states = ["connect", "mm_sign", "main", "hunting", "heroes"]
-section_coords = {
-
-    "connect": [830, 670, 280, 100],
-    "mm_sign": [470, 225, 1000, 675],
-    "main": [470, 225, 1000, 675],
-    "hunt": [470, 225, 1000, 675],
-    "heroes": [470, 225, 1000, 675],
-    "heroes_subpanel": [470, 225, 1000, 675]
-
+state_graph = {
+    "connect": ["mm"],
+    "mm": ["hunt"],
+    "hunt": ["heroes"],
+    "heroes": ["hunt"]
 }
-
-action_coords = {
-
-    "connect": [830, 670, 280, 100],
-    "mm_sign": [470, 225, 1000, 675],
-    "main": [470, 225, 1000, 675],
-    "hunt": [470, 225, 1000, 675],
-    "heroes": [470, 225, 1000, 675],
-    "heroes_subpanel": [470, 225, 1000, 675]
-
+action_graph = {
+    "connect": ["click"],
+    "mm": ["click"],
+    "hunt": ["2click", "2click"],
+    "heroes": ["drag", "work", "2click"] # maybe make an exit action?
 }
 
 parser = argparse.ArgumentParser(description='Bot for BombCrypto')
 parser.add_argument('--monitor', type=int, default=1, help='Input number of monitor to use. Default monitor 1')
 
 args = parser.parse_args()
-
-def prtScreen(screen_state="main"):
-    """Capture partial screenshot of monitor specified in input args"""
-    with mss.mss() as sct:
-        mon = sct.monitors[args.monitor]
-        # section of screenshot, manually set to BombCrypto layout assuming 1920x1080
-        monitor = {
-            "top": mon["top"] + section_coords[screen_state][1],  # 100px from the top
-            "left": mon["left"] + section_coords[screen_state][0],  # 100px from the left
-            "width": section_coords[screen_state][2],
-            "height": section_coords[screen_state][3],
-            "mon": args.monitor,
-        }
-        # return the data
-        return np.array(sct.grab(monitor))
-
-
 class Game:
-    def __init__(self, state_graph, action_graph, section_coords, action_coords):
+    def __init__(self, section_coords, action_coords):
         self.screen_state = ''
-        self.idle = False
+        self.working = False
         self.actions = []
-        self.state_graph = state_graph
-        self.action_graph = action_graph
         self.section_coords = section_coords
         self.action_coords = action_coords
         self.checkCurrentScreen()
@@ -66,7 +40,7 @@ class Game:
         """
             Read screen at app launch and store current screen state.
         """
-        img = prtScreen(screen_state='connect')
+        img = self.prtScreen(screen_state='connect')
         print(np.mean(img[:,:,0], axis=(0,1)))
         print(img[10,10,0])
 
@@ -79,53 +53,93 @@ class Game:
             screen_state = 'heroes'
         else:
             screen_state = 'hunt'
-        cv2.imshow(screen_state, img)
-        cv2.waitKey()
+        # cv2.imshow(screen_state, img)
+        # cv2.waitKey()
 
         self.screen_state = screen_state
 
+
+    def prtScreen(self, screen_state="main"):
+        """Capture partial screenshot of monitor specified in input args"""
+        with mss.mss() as sct:
+            mon = sct.monitors[args.monitor]
+            # section of screenshot, manually set to BombCrypto layout assuming 1920x1080
+            monitor = {
+                "top": mon["top"] + self.section_coords[screen_state][1],  # 100px from the top
+                "left": mon["left"] + self.section_coords[screen_state][0],  # 100px from the left
+                "width": self.section_coords[screen_state][2],
+                "height": self.section_coords[screen_state][3],
+                "mon": args.monitor,
+            }
+            # return the data
+            return np.array(sct.grab(monitor))
+
+    # pseudocode for populating coordinates dynamically
+    # def findCoordinates(self):
+    #     actions = action_graph[self.screen_state]
+    #     for action in actions:
+    #         self.action_coords[self.screen_state].append(findButton() + monitor_difference)
+
     def runCycle(self):
         # traverse through the graph from current state to the idling state
-        img = prtScreen(screen_state='connect')
+        while not self.working:
+            edges = state_graph[self.screen_state]
+            print(edges)
+            for edge in edges:
+                actions = action_graph[self.screen_state]
+                self.performActions(actions)
+                self.screen_state = edge
 
-    def performAction(self):
-        actions = self.action_graph[self.screen_state]
-        for action in actions:
-            x = self.action_coords[self.screen_state][0]
-            y = self.action_coords[self.screen_state][1]
-            print(f'action: {action} ({x}, {y})')
-            # if action == "click":
-            #     pyautogui.click(x, y)
-            # elif action == "2click":
-            #     pyautogui.doubleClick(x, y)
-            # elif action == "drag":
-            #     pyautogui.dragTo(x, y, button='left')
+
+    def performActions(self, actions):
+        for i, action in enumerate(actions):
+            x = self.action_coords[self.screen_state][2*i] - 1920
+            y = self.action_coords[self.screen_state][(2*i)+1]
+            print(f'action {i}: {action} ({x}, {y})')
+            if action == "click":
+                pyautogui.click(x, y)
+            elif action == "2click":
+                pyautogui.doubleClick(x, y, interval=0.5)
+            elif action == "drag":
+                s_size = 345 # size of hero window TODO find dynamically
+                pyautogui.moveTo(x, y)
+                # pyautogui.dragTo(x, y-s_size, button='left')
+                pyautogui.drag(0, -s_size, 1, button='left')
+                pyautogui.moveTo(x, y)
+                pyautogui.drag(0, -s_size, 1, button='left')
+            elif action == "work":
+                pyautogui.click(x, y, clicks=15, interval=0.6)
+                self.working = True
 
 
 def main():
-    # while True:
-    #     forward(200)
-    #     left(170)
-    #     if abs(pos()) < 1:
-    #         break
-    # end_fill()
-    # done()
-    # screen_state = checkCurrentScreen()
-    state_graph = {
-        "connect": {"mm"},
-        "mm": {"hunt"},
-        "hunt": {"heroes"},
-        "heroes": {"heroes", "hunt"}
+    
+    section_coords = {
+
+        "connect": [830, 670, 280, 100],
+        "mm_sign": [470, 225, 1000, 675],
+        "main": [470, 225, 1000, 675],
+        "hunt": [470, 225, 1000, 675],
+        "heroes": [470, 225, 1000, 675],
+        "heroes_subpanel": [470, 225, 1000, 675]
+
     }
-    action_graph = {
-        "connect": {"click"},
-        "mm": {"click"},
-        "hunt": {"2click", "click"},
-        "heroes": {"heroes", "hunt"}
+    action_coords = {
+
+        "connect": [830, 670, 280, 100],
+        "mm_sign": [470, 225, 1000, 675],
+        "main": [470, 225, 1000, 675],
+        "hunt": [1207, 341, 972, 825],
+        "heroes": [620, 720, 888, 730, 1207, 341],
+        "heroes_subpanel": [470, 225, 1000, 675]
+
     }
-    game = Game(state_graph, action_graph, section_coords, action_coords)
-    print(game.screen_state)
-    game.performAction()
+    game = Game(section_coords, action_coords)
+    while True:
+        # print(game.screen_state)
+        # game.performActions()
+        game.working = False
+        game.runCycle()
 
 
 main()
