@@ -1,1 +1,0 @@
-screen_states = ["connect", "mm_sign", "main", "hunting", "heroes"]

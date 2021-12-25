@@ -1,0 +1,26 @@
+# screen_states: ["connect", "mm_sign", "main", "hunting", "heroes"]
+# buttons_list: ["hero_drag_area", "bottom_work_button", "background_area", "hero_subpanel"]
+
+# program timers; minutes
+timers:
+  refresh_timer: 5
+  work_timer: 15
+  check_timer: 3
+  pause_timer: 1
+
+# button coordinates (x, y)
+coords:
+  hero_drag_area: (620, 720)
+  bottom_work_button: (888, 730)
+  background_area: (1207, 341)
+  hero_subpanel: (972, 825)
+  back_button: (535, 273)
+  connect_button: (980, 720)
+  mm_sign_button: (1820, 550) # varies
+  hunt_button: (980, 550)
+
+# template files
+files:
+  connect_button_filename: './templates/connect.png'
+  tl_border_filename: './templates/top_left_border.png'
+  br_border_filename: './templates/bottom_right_border.png'
