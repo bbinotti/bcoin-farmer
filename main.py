@@ -18,7 +18,8 @@ state_graph = {
     "mm": ["main"],
     "main": ["hunt"],
     "hunt": ["heroes"],
-    "heroes": ["hunt"]
+    "heroes": ["hunt"],
+    "new_map": ["hunt"]
 }
 action_graph = {
     "connect": ["click5"],
@@ -38,17 +39,37 @@ def read_yaml(file_path):
         return yaml.safe_load(f)
 
 # populating coordinates dynamically
-def calibrateCoordinates():
+def findGameCoords():
+    # Method to calculate coordinates of game based off of game's borders
     if not os.path.exists('./usr/user_coordinates.json'):
         img = prtScreen(capture_mode='full')
         img = img[:,:,:3]
         
-        connect_coords = getTemplateCoords(img, cfg["files"]["connect_button_filename"])
-        print(connect_coords)
+        connect_coords = getTemplateCoords(img, cfg["files"]["connect_button_filename"]) # should only take partial screenshot
+        # game borders
         tl_border_coords = getTemplateCoords(img, cfg["files"]["tl_border_filename"])
-        print(tl_border_coords)
         br_border_coords = getTemplateCoords(img, cfg["files"]["br_border_filename"])
-        print(br_border_coords)
+        game_w = br_border_coords[0] - tl_border_coords[0]
+        game_h = br_border_coords[1] - tl_border_coords[1]
+
+        # print((1820 - tl_border_coords[0]) / game_w)
+        # print((825 - tl_border_coords[1]) / game_h)
+        # print(280 * 1.0 / game_w)
+        # print(100 * 1.0 / game_h)
+        for section in cfg["sections"].keys():
+            xi = np.around((cfg["sections"][section][0] * game_w) + tl_border_coords[0])
+            yi = np.around((cfg["sections"][section][1] * game_h) + tl_border_coords[1])
+            w = np.around(cfg["sections"][section][2] * game_w)
+            h = np.around(cfg["sections"][section][3] * game_h)
+       
+        game_info = {
+            "tl_border": tl_border_coords,
+            "br_border": br_border_coords,
+            "game_w": game_w,
+            "game_h": game_h
+        }
+
+        return game_info
 
 
 def getTemplateCoords(img, template_filename, thresh=0.9):
@@ -58,8 +79,20 @@ def getTemplateCoords(img, template_filename, thresh=0.9):
     # cv2.imshow("none", conv)
     # cv2.waitKey()
     tmp = np.where(conv > thresh)
-    coords = (tmp[0][0] + int(t_w / 2), tmp[1][0] + int(t_h / 2))
+    coords = (tmp[1][0] + int(t_h / 2), tmp[0][0] + int(t_w / 2))
     return coords
+
+# TODO check redundancies
+def isScreenThisState(template_filename, capture_mode="full", thresh=0.9):
+    img = prtScreen(capture_mode=capture_mode)
+    template_img = cv2.imread(template_filename)
+    conv = cv2.matchTemplate(img, template_img, cv2.TM_CCOEFF_NORMED)
+    tmp = np.where(conv > thresh)
+    if tmp.shape < 1:
+        match = False
+    else:
+        match = True
+    return match
 
 
 def prtScreen(capture_mode="main", section_coords=None):
@@ -85,13 +118,27 @@ def prtScreen(capture_mode="main", section_coords=None):
             return np.array(sct.grab(monitor))
 
 class Game:
-    def __init__(self, section_coords, action_coords):
+    def __init__(self, section_coords):
         self.screen_state = ''
         self.hunting = False
         self.section_coords = section_coords
-        self.action_coords = action_coords
         self.checkCurrentScreen()
+        self.game_info = findGameCoords()
+        self.key_coords = self.getKeyCoordinates()
+        self.action_coords = {
+
+            "connect": [self.key_coords["connect_button"]],
+            "mm": [self.key_coords["mm_sign_button"]],
+            "main": [self.key_coords["hunt_button"]],
+            "hunt": [self.key_coords["background_area"], self.key_coords["hero_subpanel"]],
+            "heroes": [self.key_coords["hero_drag_area"], self.key_coords["bottom_work_button"], self.key_coords["background_area"]],
+            "heroes_subpanel": [470, 225, 1000, 675]
+
+        }
+        
+        self.printGameInfo()
     
+
     def checkCurrentScreen(self):
         """
             Read screen at app launch and store current screen state.
@@ -99,7 +146,6 @@ class Game:
         img = prtScreen(capture_mode='connect', section_coords=self.section_coords)
 
         average_r = np.mean(img[:,:,0], axis=(0,1))
-        print(average_r)
         # brute force checking pixels
         if 64 < average_r < 70:
             screen_state = 'connect'
@@ -113,6 +159,25 @@ class Game:
         # cv2.waitKey()
 
         self.screen_state = screen_state
+
+    def getKeyCoordinates(self):
+        # use game border coordinates to calculate key areas coordinates
+        key_coords = {}
+        for key in cfg["coords"].keys():
+            game_w = self.game_info["game_w"]
+            game_h = self.game_info["game_h"]
+            tl_border = self.game_info["tl_border"]
+            x = np.around((cfg["coords"][key][0] * game_w) + tl_border[0])
+            y = np.around((cfg["coords"][key][1] * game_h) + tl_border[1])
+            key_coords[key] = (x, y)
+
+        return key_coords
+
+    def printGameInfo(self):
+        # show this game's info
+        print("GAME INFO ") # TODO print which game #
+        for key in self.game_info.keys():
+            print(f'{key}: {self.game_info[key]}')
 
     def runCycle(self):
         # traverse through the graph from current state to the idling state
@@ -165,43 +230,32 @@ def main():
         "heroes_subpanel": [470, 225, 1000, 675],
 
     }
-    action_coords = {
+    
+    last_check = time.time()
+    last_refresh = time.time()
+    last_work = time.time()
 
-        "connect": [cfg["coords"]["connect_button"]],
-        "mm": [cfg["coords"]["mm_sign_button"]],
-        "main": [cfg["coords"]["hunt_button"]],
-        "hunt": [cfg["coords"]["background_area"], cfg["coords"]["hero_subpanel"]],
-        "heroes": [cfg["coords"]["hero_drag_area"], cfg["coords"]["bottom_work_button"], cfg["coords"]["background_area"]],
-        "heroes_subpanel": [470, 225, 1000, 675]
-
-    }
-
-    last_check = 0
-    last_refresh = 0
-    last_work = 0
-
-    calibrateCoordinates()
-    game = Game(section_coords, action_coords)
-    # while True:
-    #     # print(game.screen_state)
-    #     print('Running...')
-    #     current_time = time.time()
-    #     if not game.hunting:
-    #         game.runCycle()
-    #     if current_time - last_check > (cfg["timers"]["check_timer"] * 60):
-    #         print("Checking for changes...")
-    #         # prtScreen for new map or errors
-    #     if current_time - last_refresh > (cfg["timers"]["refresh_timer"] * 60):
-    #         print('Refreshing game...')
-    #         game.hunting = False
-    #         # TODO use back button
-    #         last_refresh = time.time()
-    #     if current_time - last_work > (cfg["timers"]["work_timer"] * 60):
-    #         print('Refreshing workers...')
-    #         game.hunting = False
-    #         last_work = time.time()
-    #     else:
-    #         print(f'Pausing program for {cfg["timers"]["pause_timer"] * 60} seconds...')
-    #         time.sleep(cfg["timers"]["pause_timer"] * 60)
+    game = Game(section_coords)
+    while True:
+        # print(game.screen_state)
+        print('Running...')
+        current_time = time.time()
+        if not game.hunting:
+            game.runCycle()
+        if current_time - last_check > (cfg["timers"]["check_timer"] * 60):
+            print("Checking for changes...")
+            # prtScreen for new map or errors
+        if current_time - last_refresh > (cfg["timers"]["refresh_timer"] * 60):
+            print('Refreshing game...')
+            game.hunting = False
+            # TODO use back button
+            last_refresh = time.time()
+        if current_time - last_work > (cfg["timers"]["work_timer"] * 60):
+            print('Refreshing workers...')
+            game.hunting = False
+            last_work = time.time()
+        else:
+            print(f'Pausing program for {cfg["timers"]["pause_timer"] * 60} seconds...')
+            time.sleep(cfg["timers"]["pause_timer"] * 60)
 
 main()
