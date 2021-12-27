@@ -9,31 +9,11 @@ import mss
 import pyautogui
 
 # TODO features
-# after signing in on MM, check that loading screen before next action
-# Make sure sign in is successful, loop back to login state if not
-# Add check for new map
-# Use multiple windows: initial check for number of connect buttons found
-# find MM button
+# - after signing in on MM, check that loading screen before next action
+# - Make sure sign in is successful, loop back to login state if not
+# - Use multiple windows: initial check for number of connect buttons found
 
-pyautogui.PAUSE = .5
-
-# screen_states = ["connect", "mm_sign", "main", "hunting", "heroes"]
-state_graph = {
-    "connect": ["mm"],
-    "mm": ["main"],
-    "main": ["hunt"],
-    "hunt": ["heroes"],
-    "heroes": ["hunt"],
-    "new_map": ["hunt"]
-}
-action_graph = {
-    "connect": ["click5"],
-    "mm": ["click10"],
-    "main": ["click"],
-    "hunt": ["2click", "2click"],
-    "heroes": ["drag", "work", "2click"], # maybe make an exit action?
-    "new_map": ["click"]
-}
+pyautogui.PAUSE = 1
 
 parser = argparse.ArgumentParser(description='Bot for BombCrypto')
 parser.add_argument('--monitor', type=int, default=1, help='Input number of monitor to use. Default monitor 1')
@@ -44,6 +24,7 @@ def read_yaml(file_path):
     with open(file_path, "r") as f:
         return yaml.safe_load(f)
 
+# section coords default None is a bad idea
 def takeScreenshot(capture_mode="main", section_coords=None):
     """Capture partial screenshot of monitor specified in input args"""
     with mss.mss() as sct:
@@ -81,7 +62,7 @@ class Game:
             "main": [self.key_coords["hunt_button"]],
             "hunt": [self.key_coords["background_area"], self.key_coords["hero_subpanel"]],
             "heroes": [self.key_coords["hero_drag_area"], self.key_coords["bottom_work_button"], self.key_coords["background_area"]],
-            # "heroes_subpanel": [470, 225, 1000, 675],
+            "refresh": [self.key_coords["back_button"]],
             "new_map": [self.key_coords["new_map_button"]]
 
         }
@@ -136,16 +117,6 @@ class Game:
                 self.screen_state = state
                 break
 
-        # if self.isGameThisState(cfg["files"]["connect"], capture_mode="game"):
-        #     screen_state = 'connect'
-        # elif self.isGameThisState(cfg["files"]["main"], capture_mode="game"):
-        #     screen_state = 'main'
-        # elif self.isGameThisState(cfg["files"]["heroes"], capture_mode="game"):
-        #     screen_state = 'heroes'
-        # else:
-        #     screen_state = 'hunt'
-        # self.screen_state = screen_state
-
     def getKeyCoordinates(self, pctDicts):
         # use game border coordinates to calculate key areas coordinates
         key_coords = {}
@@ -171,7 +142,6 @@ class Game:
         img = takeScreenshot(capture_mode=capture_mode, section_coords=self.section_coords)
         template_img = cv2.imread(template_filename)
         conv = cv2.matchTemplate(img, template_img, cv2.TM_CCOEFF_NORMED)
-        print(template_img.shape)
         # cv2.imshow("none", conv)
         # cv2.waitKey()
         tmp = np.where(conv > thresh)
@@ -190,21 +160,22 @@ class Game:
     def runCycle(self):
         # traverse through the graph from current state to the idling state
         while not self.hunting:
-            edges = state_graph[self.screen_state]
+            edges = cfg["state_graph"][self.screen_state]
             print(f'Current State: {self.screen_state}; Target state: {edges}')
             for edge in edges:
-                actions = action_graph[self.screen_state]
+                actions = cfg["action_graph"][self.screen_state]
                 self.performActions(actions)
                 self.screen_state = edge
 
     def performActions(self, actions):
         for i, action in enumerate(actions):
+            # if clicking on MM sign in button, find it first
             if self.screen_state == 'mm':
                 mm_coord = self.getGameThisState(cfg["files"]["mm"], capture_mode="full")
-                x = mm_coord[0] + (135 / 2) - 1920
+                x = mm_coord[0] + (135 / 2) + x_diff # TODO fix this
                 y = mm_coord[1] + (57 / 2)
             else:
-                x = self.action_coords[self.screen_state][i][0] - 1920
+                x = self.action_coords[self.screen_state][i][0] + x_diff # TODO fix this
                 y = self.action_coords[self.screen_state][i][1]
             print(f'action {i}: {action} ({x}, {y})')
 
@@ -230,7 +201,9 @@ class Game:
                 pyautogui.click(x, y, clicks=15, interval=0.6)
                 self.hunting = True
 
-
+with mss.mss() as sct:
+    mon = sct.monitors[args.monitor]
+    x_diff = mon["left"]
 cfg = read_yaml('./config.yml')
 def main():
     
@@ -239,8 +212,8 @@ def main():
     last_work = time.time()
 
     game = Game()
+
     while True:
-        # print(game.screen_state)
         print('Running...')
         current_time = time.time()
         if not game.hunting:
@@ -253,10 +226,11 @@ def main():
                 game.hunting = False
                 # change game state to new map
                 game.screen_state = "new_map"
+            last_check = time.time()
         elif current_time - last_refresh > (cfg["timers"]["refresh_timer"] * 60):
             print('Refreshing game...')
             game.hunting = False
-            # TODO use back button, update current state to main
+            game.screen_state = "refresh"
             last_refresh = time.time()
         elif current_time - last_work > (cfg["timers"]["work_timer"] * 60):
             print('Refreshing workers...')

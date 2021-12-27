@@ -8,6 +8,24 @@ timers:
   check_timer: 3
   pause_timer: 1
 
+state_graph:
+  connect: ["mm"],
+  mm: ["main"],
+  main: ["hunt"],
+  hunt: ["heroes"],
+  heroes: ["hunt"],
+  new_map: ["hunt"],
+  refresh: ["main"]
+
+action_graph:
+    connect: ["click5"],
+    mm: ["click10"],
+    main: ["click"],
+    hunt: ["2click", "2click"],
+    heroes: ["drag", "work", "2click"],
+    new_map: ["click"],
+    refresh: ["click"]
+
 # button center coordinates [x, y]
 coords:
   hero_drag_area: [0.1401, 0.7290] #[620, 720]
