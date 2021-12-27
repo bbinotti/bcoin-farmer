@@ -18,10 +18,12 @@ coords:
   connect_button: [0.5030, 0.7290] #[980, 720]
   mm_sign_button: [1.3498, 0.4746] # [1820, 550] # varies
   hunt_button: [0.5030, 0.4746] #[980, 550]
+  new_map_button: [0.5030, 0.7290] #[980, 720]
 
 # section locations as percentages of game screen area [x, y, w, h]
 sections:
   connect: [0.3518, 0.6542, 0.2822, 0.1497]
+  game: [0.0, 0.0, 1.0, 1.0]
 
 # template files
 files:
@@ -29,3 +31,5 @@ files:
   tl_border_filename: './templates/top_left_border.png'
   br_border_filename: './templates/bottom_right_border.png'
   new_map_filename: './templates/new_map.png'
+  main_filename: './templates/main.png'
+  stamina_bar_filename: './templates/stamina_bar_green.png'
