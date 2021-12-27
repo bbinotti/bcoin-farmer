@@ -12,6 +12,7 @@ import pyautogui
 # - after signing in on MM, check that loading screen before next action
 # - Make sure sign in is successful, loop back to login state if not
 # - Use multiple windows: initial check for number of connect buttons found
+# - Optimize number of heroes if 1 chest is left
 
 pyautogui.PAUSE = 1
 
