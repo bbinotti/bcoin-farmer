@@ -28,6 +28,7 @@ sections:
 # template files
 files:
   connect: './templates/connect.png'
+  mm: './templates/meta_sign.png'
   new_map: './templates/new_map.png'
   main: './templates/main.png'
   heroes: './templates/stamina_bar_green.png'

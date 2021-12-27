@@ -171,6 +171,7 @@ class Game:
         img = takeScreenshot(capture_mode=capture_mode, section_coords=self.section_coords)
         template_img = cv2.imread(template_filename)
         conv = cv2.matchTemplate(img, template_img, cv2.TM_CCOEFF_NORMED)
+        print(template_img.shape)
         # cv2.imshow("none", conv)
         # cv2.waitKey()
         tmp = np.where(conv > thresh)
@@ -198,8 +199,13 @@ class Game:
 
     def performActions(self, actions):
         for i, action in enumerate(actions):
-            x = self.action_coords[self.screen_state][i][0] - 1920
-            y = self.action_coords[self.screen_state][i][1]
+            if self.screen_state == 'mm':
+                mm_coord = self.getGameThisState(cfg["files"]["mm"], capture_mode="full")
+                x = mm_coord[0] + (135 / 2) - 1920
+                y = mm_coord[1] + (57 / 2)
+            else:
+                x = self.action_coords[self.screen_state][i][0] - 1920
+                y = self.action_coords[self.screen_state][i][1]
             print(f'action {i}: {action} ({x}, {y})')
 
             if action == "click":
@@ -215,7 +221,7 @@ class Game:
             elif action == "2click":
                 pyautogui.doubleClick(x, y, interval=0.5)
             elif action == "drag":
-                s_size = 345 # size of hero window TODO find dynamically
+                s_size = 0.5164 * self.game_info["game_h"]
                 pyautogui.moveTo(x, y)
                 pyautogui.drag(0, -s_size, 1, button='left')
                 pyautogui.moveTo(x, y)
