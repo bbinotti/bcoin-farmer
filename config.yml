@@ -27,9 +27,9 @@ sections:
 
 # template files
 files:
-  connect_button_filename: './templates/connect.png'
+  connect: './templates/connect.png'
+  new_map: './templates/new_map.png'
+  main: './templates/main.png'
+  heroes: './templates/stamina_bar_green.png'
   tl_border_filename: './templates/top_left_border.png'
   br_border_filename: './templates/bottom_right_border.png'
-  new_map_filename: './templates/new_map.png'
-  main_filename: './templates/main.png'
-  stamina_bar_filename: './templates/stamina_bar_green.png'

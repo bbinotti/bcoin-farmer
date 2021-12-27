@@ -96,7 +96,7 @@ class Game:
             img = takeScreenshot(capture_mode='full')
             img = img[:,:,:3]
             
-            connect_coords = self.getTemplateCoords(img, cfg["files"]["connect_button_filename"]) # should only take partial screenshot
+            # connect_coords = self.getTemplateCoords(img, cfg["files"]["connect_button_filename"]) # should only take partial screenshot
             # game borders
             tl_border_coords = self.getTemplateCoords(img, cfg["files"]["tl_border_filename"])
             br_border_coords = self.getTemplateCoords(img, cfg["files"]["br_border_filename"])
@@ -129,28 +129,22 @@ class Game:
         """
         img = takeScreenshot(capture_mode='game', section_coords=self.section_coords)
 
-        # average_r = np.mean(img[:,:,0], axis=(0,1))
-        # # brute force checking pixels
-        # if 64 < average_r < 70:
+        # use for loop; maybe change name of formats
+        for state in cfg["files"].keys():
+            tmp = self.getGameThisState(cfg["files"][state], capture_mode="game")
+            if len(tmp) > 0:
+                self.screen_state = state
+                break
+
+        # if self.isGameThisState(cfg["files"]["connect"], capture_mode="game"):
         #     screen_state = 'connect'
-        # elif 210 < average_r < 220:
+        # elif self.isGameThisState(cfg["files"]["main"], capture_mode="game"):
         #     screen_state = 'main'
-        # elif 145 < average_r < 155:
+        # elif self.isGameThisState(cfg["files"]["heroes"], capture_mode="game"):
         #     screen_state = 'heroes'
         # else:
         #     screen_state = 'hunt'
-
-        # cv2.imshow(screen_state, img)
-        # cv2.waitKey()
-        if self.isGameThisState(cfg["files"]["connect_button_filename"], capture_mode="game"):
-            screen_state = 'connect'
-        elif self.isGameThisState(cfg["files"]["main_filename"], capture_mode="game"):
-            screen_state = 'main'
-        elif self.isGameThisState(cfg["files"]["stamina_bar_filename"], capture_mode="game"):
-            screen_state = 'heroes'
-        else:
-            screen_state = 'hunt'
-        self.screen_state = screen_state
+        # self.screen_state = screen_state
 
     def getKeyCoordinates(self, pctDicts):
         # use game border coordinates to calculate key areas coordinates
@@ -172,22 +166,19 @@ class Game:
 
         return key_coords
 
-    # TODO check redundancies
-    def isGameThisState(self, template_filename, capture_mode="full", thresh=0.9):
+    # TODO check redundancies, change name to be more accurate
+    def getGameThisState(self, template_filename, capture_mode="full", thresh=0.9):
         img = takeScreenshot(capture_mode=capture_mode, section_coords=self.section_coords)
         template_img = cv2.imread(template_filename)
-        print(img.shape)
-        print(template_img.shape)
         conv = cv2.matchTemplate(img, template_img, cv2.TM_CCOEFF_NORMED)
         # cv2.imshow("none", conv)
         # cv2.waitKey()
         tmp = np.where(conv > thresh)
         if len(tmp[0]) == 0:
-            match = False
+            m_coords = []
         else:
-            match = True
-        # TODO return match and coordinates?
-        return match
+            m_coords = (tmp[1][0], tmp[0][0]) 
+        return m_coords
 
     def printGameInfo(self):
         # show this game's info
@@ -242,9 +233,6 @@ def main():
     last_work = time.time()
 
     game = Game()
-    # print(game.game_info["tl_border"], game.game_info["game_w"], game.game_info["game_h"])
-    # print(game.isGameThisState(cfg["files"]["new_map_filename"], capture_mode="game"))
-    # print(game.isGameThisState(cfg["files"]["connect_button_filename"], capture_mode="game"))
     while True:
         # print(game.screen_state)
         print('Running...')
@@ -253,15 +241,18 @@ def main():
             game.runCycle()
         if current_time - last_check > (cfg["timers"]["check_timer"] * 60):
             print("Checking for changes...")
-            if game.isGameThisState(cfg["files"]["new_map_filename"], capture_mode="game"):
-
-            # takeScreenshot for new map or errors
-        if current_time - last_refresh > (cfg["timers"]["refresh_timer"] * 60):
+            new_map_coord = game.getGameThisState(cfg["files"]["new_map"], capture_mode="game")
+            if len(new_map_coord) > 0:
+                print("Changing maps!")
+                game.hunting = False
+                # change game state to new map
+                game.screen_state = "new_map"
+        elif current_time - last_refresh > (cfg["timers"]["refresh_timer"] * 60):
             print('Refreshing game...')
             game.hunting = False
-            # TODO use back button
+            # TODO use back button, update current state to main
             last_refresh = time.time()
-        if current_time - last_work > (cfg["timers"]["work_timer"] * 60):
+        elif current_time - last_work > (cfg["timers"]["work_timer"] * 60):
             print('Refreshing workers...')
             game.hunting = False
             last_work = time.time()
